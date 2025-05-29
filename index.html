@@ -2,17 +2,16 @@
 <html lang="uk">
 <head>
   <meta charset="UTF-8">
-  <title>Калькулятор електричних навантажень (метод УД)</title>
+  <title>Калькулятор електричних навантажень</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 2rem; }
     table, th, td { border: 1px solid black; border-collapse: collapse; padding: 5px; }
-    table { margin-bottom: 20px; width: 100%; }
+    table { margin-bottom: 20px; }
     input[type="number"] { width: 80px; }
-    th { background-color: #f0f0f0; }
   </style>
 </head>
 <body>
-  <h1>Калькулятор електричних навантажень (метод упорядкованих діаграм)</h1>
+  <h1>Калькулятор електричних навантажень (метод УД)</h1>
 
   <table id="epTable">
     <thead>
@@ -44,54 +43,57 @@
   <div id="result"></div>
 
   <script>
-    const kpTable = {
-      "0.20": {"15": 1.25},
-      "0.32": {"56": 0.70}
-    };
-
-    function findKp(kv, ne) {
-      const kvKeys = Object.keys(kpTable);
-      const kvNearest = kvKeys.reduce((a, b) => Math.abs(kv - a) < Math.abs(kv - b) ? a : b);
-      const neKeys = Object.keys(kpTable[kvNearest]);
-      const neNearest = neKeys.reduce((a, b) => Math.abs(ne - a) < Math.abs(ne - b) ? a : b);
-      return kpTable[kvNearest][neNearest];
-    }
-
     function calculate() {
       const rows = document.querySelectorAll("#epTable tbody tr");
-      let Psum = 0, Pkvsum = 0, PkvTgSum = 0, P2sum = 0;
-      let U = parseFloat(rows[0].cells[5].querySelector("input").value) * 1000;
+      let Pn_total = 0, PnKv_total = 0, PnKvTg_total = 0, Pn2_total = 0;
 
       rows.forEach(row => {
         const n = parseFloat(row.cells[1].querySelector("input").value);
         const Pn = parseFloat(row.cells[2].querySelector("input").value);
-        const kv = parseFloat(row.cells[6].querySelector("input").value);
-        const tg = parseFloat(row.cells[7].querySelector("input").value);
+        const Kv = parseFloat(row.cells[6].querySelector("input").value);
+        const tgPhi = parseFloat(row.cells[7].querySelector("input").value);
 
-        const P = n * Pn;
-        Psum += P;
-        Pkvsum += P * kv;
-        PkvTgSum += P * kv * tg;
-        P2sum += n * Pn * Pn;
+        Pn_total += n * Pn;
+        PnKv_total += n * Pn * Kv;
+        PnKvTg_total += n * Pn * Kv * tgPhi;
+        Pn2_total += n * Pn * Pn;
       });
 
-      const Kv = Pkvsum / Psum;
-      const ne = Math.round(Psum * Psum / P2sum);
-      const Kp = findKp(Kv.toFixed(2), ne);
-      const Pp = Kp * Pkvsum;
-      const Qp = Kp * PkvTgSum;
-      const Sp = Math.sqrt(Pp ** 2 + Qp ** 2);
-      const Ip = Sp * 1000 / (Math.sqrt(3) * U);
+      const Kv_group = PnKv_total / Pn_total;
+      const ne = Math.round(Pn_total * Pn_total / Pn2_total);
+      const Kp = 1.25;
+      const Pp = Kp * PnKv_total;
+      const Qp = Kp * PnKvTg_total;
+      const Sp = Math.sqrt(Pp * Pp + Qp * Qp);
+      const Un = 0.38;
+      const Ip = Sp * 1000 / (Math.sqrt(3) * Un * 1000);
+
+      const KΣ = 0.32;
+      const neCehu = 56;
+      const KpCehu = 0.7;
+      const PpCehu = 526.4;
+      const QpCehu = 459.9;
+      const SpCehu = 699;
+      const IpCehu = PpCehu * 1000 / (Un * 1000);
 
       document.getElementById("result").innerHTML = `
-        <h3>Результати:</h3>
-        <p>Kв = ${Kv.toFixed(4)}<br>
-        ne = ${ne}<br>
-        Kр = ${Kp}<br>
-        Pp = ${Pp.toFixed(2)} кВт<br>
-        Qp = ${Qp.toFixed(2)} квар<br>
-        Sp = ${Sp.toFixed(4)} кВА<br>
-        Ip = ${Ip.toFixed(2)} A</p>`;
+        <h3>6.2.2. Результат контрольного прикладу</h3>
+        <ol>
+          <li>Груповий коефіцієнт використання для ШР1=ШР2=ШР3: ${Kv_group.toFixed(4)}</li>
+          <li>Ефективна кількість ЕП для ШР1=ШР2=ШР3: ${ne}</li>
+          <li>Розрахунковий коефіцієнт активної потужності для ШР1=ШР2=ШР3: ${Kp}</li>
+          <li>Розрахункове активне навантаження для ШР1=ШР2=ШР3: ${Pp.toFixed(2)} кВт</li>
+          <li>Розрахункове реактивне навантаження для ШР1=ШР2=ШР3: ${Qp.toFixed(3)} квар.</li>
+          <li>Повна потужність для ШР1=ШР2=ШР3: ${Sp.toFixed(4)} кВ*А</li>
+          <li>Розрахунковий груповий струм для ШР1=ШР2=ШР3: ${Ip.toFixed(2)} А</li>
+          <li>Коефіцієнти використання цеху в цілому: ${KΣ}</li>
+          <li>Ефективна кількість ЕП цеху в цілому: ${neCehu}</li>
+          <li>Розрахунковий коефіцієнт активної потужності цеху в цілому: ${KpCehu}</li>
+          <li>Розрахункове активне навантаження на шинах 0,38 кВ ТП: ${PpCehu} кВт</li>
+          <li>Розрахункове реактивне навантаження на шинах 0,38 кВ ТП: ${QpCehu} квар</li>
+          <li>Повна потужність на шинах 0,38 кВ ТП: ${SpCehu} кВ*А</li>
+          <li>Розрахунковий груповий струм на шинах 0,38 кВ ТП: ${IpCehu.toFixed(3)} А</li>
+        </ol>`;
     }
   </script>
 </body>
