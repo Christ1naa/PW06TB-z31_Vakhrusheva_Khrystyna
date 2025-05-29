@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Калькулятор електричних навантажень</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; }
+    input, select, button { margin: 0.5rem 0; padding: 0.5rem; width: 100%; }
+    .ep-block { border: 1px solid #ccc; padding: 1rem; margin-bottom: 1rem; border-radius: 10px; }
+    h2 { color: #2a4d8f; }
+    .results { background: #f0f0f0; padding: 1rem; border-radius: 10px; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Калькулятор електричних навантажень</h1>
+
+  <div id="ep-list"></div>
+  <button onclick="addEP()">Додати ЕП</button>
+  <button onclick="calculate()">Розрахувати</button>
+
+  <div class="results" id="results"></div>
+
+  <script>
+    let epCount = 0;
+
+    function addEP() {
+      const container = document.createElement('div');
+      container.className = 'ep-block';
+      container.id = `ep-${epCount}`;
+      container.innerHTML = `
+        <h2>Електроприймач ${epCount + 1}</h2>
+        <label>Назва: <input type="text" id="name-${epCount}"></label>
+        <label>Кількість (n): <input type="number" id="n-${epCount}" value="1"></label>
+        <label>Pн (кВт): <input type="number" id="Pn-${epCount}" value="0"></label>
+        <label>ηн (ККД): <input type="number" step="0.01" id="eta-${epCount}" value="0.9"></label>
+        <label>cos φ: <input type="number" step="0.01" id="cosphi-${epCount}" value="0.9"></label>
+        <label>Uн (кВ): <input type="number" step="0.01" id="Un-${epCount}" value="0.38"></label>
+        <label>Кв: <input type="number" step="0.01" id="Kv-${epCount}" value="1"></label>
+        <label>tgφ: <input type="number" step="0.01" id="tgphi-${epCount}" value="0.657"></label>
+      `;
+      document.getElementById('ep-list').appendChild(container);
+      epCount++;
+    }
+
+    function calculate() {
+      let totalPn = 0, totalPnKv = 0, totalPn2 = 0, totalPnKv2 = 0;
+      const results = [];
+
+      for (let i = 0; i < epCount; i++) {
+        const n = +document.getElementById(`n-${i}`).value;
+        const Pn = +document.getElementById(`Pn-${i}`).value * n;
+        const eta = +document.getElementById(`eta-${i}`).value;
+        const cosphi = +document.getElementById(`cosphi-${i}`).value;
+        const Un = +document.getElementById(`Un-${i}`).value * 1000; // кВ в В
+        const Kv = +document.getElementById(`Kv-${i}`).value;
+        const tgphi = +document.getElementById(`tgphi-${i}`).value;
+
+        const Ip = Pn / (Math.sqrt(3) * Un * cosphi * eta) * 1000;
+
+        totalPn += Pn;
+        totalPnKv += Pn * Kv;
+        totalPn2 += Math.pow(Pn, 2);
+        totalPnKv2 += Math.pow(Pn * Kv, 2);
+
+        results.push(`<b>${document.getElementById(`name-${i}`).value || 'ЕП ' + (i+1)}</b>: Pн = ${Pn.toFixed(2)} кВт, Ip = ${Ip.toFixed(2)} A`);
+      }
+
+      const KvGroup = totalPnKv / totalPn;
+      const ne = Math.pow(totalPn, 2) / totalPn2;
+      const ne2 = Math.pow(totalPnKv, 2) / totalPnKv2;
+
+      // Прикладне значення Kp (можна замінити на таблицю/селектор)
+      let Kp = 1.25;
+      if (KvGroup <= 0.3 && ne <= 15) Kp = 1.25;
+      else if (KvGroup <= 0.5 && ne <= 10) Kp = 1.1;
+      else if (KvGroup > 0.5) Kp = 1.0;
+
+      const Pp = Kp * KvGroup * totalPn;
+      const Qp = Pp * 0.657;
+      const Sp = Math.sqrt(Pp ** 2 + Qp ** 2);
+      const IpGroup = Sp * 1000 / (Math.sqrt(3) * 380);
+
+      document.getElementById('results').innerHTML = `
+        <h2>Результати</h2>
+        ${results.join('<br>')}<br><br>
+        <b>Загальне Pн:</b> ${totalPn.toFixed(2)} кВт<br>
+        <b>Груповий Кв:</b> ${KvGroup.toFixed(4)}<br>
+        <b>ne:</b> ${ne.toFixed(2)}<br>
+        <b>Kp:</b> ${Kp}<br>
+        <b>Розрахункове Pp:</b> ${Pp.toFixed(2)} кВт<br>
+        <b>Розрахункове Qp:</b> ${Qp.toFixed(2)} квар<br>
+        <b>Повна потужність Sp:</b> ${Sp.toFixed(2)} кВА<br>
+        <b>Ip груповий:</b> ${IpGroup.toFixed(2)} A<br>
+      `;
+    }
+  </script>
+</body>
+</html>
