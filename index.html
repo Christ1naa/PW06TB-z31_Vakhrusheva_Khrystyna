@@ -2,134 +2,62 @@
 <html lang="uk">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Калькулятор електричних навантажень</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 2rem; }
-    input, select, button { margin: 0.5rem 0; padding: 0.5rem; width: 100%; }
-    .ep-block { border: 1px solid #ccc; padding: 1rem; margin-bottom: 1rem; border-radius: 10px; }
-    h2 { color: #2a4d8f; }
-    .results { background: #f0f0f0; padding: 1rem; border-radius: 10px; margin-top: 1rem; }
-    canvas { max-width: 100%; margin-top: 2rem; }
+    label, input { display: block; margin-bottom: 8px; }
+    input[type="number"] { width: 100px; }
+    .result { margin-top: 20px; }
   </style>
 </head>
 <body>
-  <h1>Калькулятор електричних навантажень</h1>
+  <h1>Калькулятор електричних навантажень (метод УД)</h1>
+  
+  <form id="calcForm">
+    <label>Номінальна потужність Pн (кВт): <input type="number" id="Pn" required></label>
+    <label>Кількість ЕП n: <input type="number" id="n" required></label>
+    <label>ηн (коефіцієнт корисної дії): <input type="number" step="0.01" id="eta" required></label>
+    <label>cos φ: <input type="number" step="0.01" id="cosPhi" required></label>
+    <label>Uн (кВ): <input type="number" step="0.01" id="Un" required></label>
+    <label>Кв (коефіцієнт використання): <input type="number" step="0.01" id="kv" required></label>
+    <label>tg φ: <input type="number" step="0.01" id="tgPhi" required></label>
+    <button type="submit">Розрахувати</button>
+  </form>
 
-  <div id="ep-list"></div>
-  <button onclick="addEP()">Додати ЕП</button>
-  <button onclick="calculate()">Розрахувати</button>
+  <div class="result" id="result"></div>
 
-  <label for="kpSelector">Оберіть коефіцієнт Kp (табл. 6.3/6.4):</label>
-  <select id="kpSelector">
-    <option value="1.25">Kv ≤ 0.25, ne ≤ 16 → Kp = 1.25</option>
-    <option value="1.10">Kv ≤ 0.5, ne ≤ 10 → Kp = 1.10</option>
-    <option value="1.00" selected>Kp = 1.00 (типово)</option>
-  </select>
-
-  <div class="results" id="results"></div>
-  <canvas id="loadChart"></canvas>
-
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    let epCount = 0;
+    document.getElementById("calcForm").addEventListener("submit", function (e) {
+      e.preventDefault();
 
-    function addEP() {
-      const container = document.createElement('div');
-      container.className = 'ep-block';
-      container.id = `ep-${epCount}`;
-      container.innerHTML = `
-        <h2>Електроприймач ${epCount + 1}</h2>
-        <label>Назва: <input type="text" id="name-${epCount}"></label>
-        <label>Кількість (n): <input type="number" id="n-${epCount}" value="1"></label>
-        <label>Pн (кВт): <input type="number" id="Pn-${epCount}" value="0"></label>
-        <label>ηн (ККД): <input type="number" step="0.01" id="eta-${epCount}" value="0.9"></label>
-        <label>cos φ: <input type="number" step="0.01" id="cosphi-${epCount}" value="0.9"></label>
-        <label>Uн (кВ): <input type="number" step="0.01" id="Un-${epCount}" value="0.38"></label>
-        <label>Кв: <input type="number" step="0.01" id="Kv-${epCount}" value="1"></label>
-        <label>tgφ: <input type="number" step="0.01" id="tgphi-${epCount}" value="0.657"></label>
-      `;
-      document.getElementById('ep-list').appendChild(container);
-      epCount++;
-    }
+      const Pn = parseFloat(document.getElementById("Pn").value);
+      const n = parseFloat(document.getElementById("n").value);
+      const eta = parseFloat(document.getElementById("eta").value);
+      const cosPhi = parseFloat(document.getElementById("cosPhi").value);
+      const Un = parseFloat(document.getElementById("Un").value);
+      const kv = parseFloat(document.getElementById("kv").value);
+      const tgPhi = parseFloat(document.getElementById("tgPhi").value);
 
-    function calculate() {
-      let totalPn = 0, totalPnKv = 0, totalPn2 = 0;
-      const results = [];
-      const names = [], ipValues = [];
+      const P_total = Pn * n;
+      const Ip = (P_total * 1000) / (Math.sqrt(3) * Un * 1000 * cosPhi * eta);
 
-      for (let i = 0; i < epCount; i++) {
-        const n = +document.getElementById(`n-${i}`).value;
-        const Pn = +document.getElementById(`Pn-${i}`).value;
-        const eta = +document.getElementById(`eta-${i}`).value;
-        const cosphi = +document.getElementById(`cosphi-${i}`).value;
-        const Un = +document.getElementById(`Un-${i}`).value * 1000;
-        const Kv = +document.getElementById(`Kv-${i}`).value;
-        const tgphi = +document.getElementById(`tgphi-${i}`).value;
+      const Pv = P_total * kv;
+      const Qv = Pv * tgPhi;
+      const Sp = Math.sqrt(Pv ** 2 + Qv ** 2);
 
-        const Psum = Pn * n;
-        const Ip = (Psum * 1000) / (Math.sqrt(3) * Un * cosphi * eta);
+      const Ip_group = (Sp * 1000) / (Math.sqrt(3) * Un * 1000);
 
-        totalPn += Psum;
-        totalPnKv += Psum * Kv;
-        totalPn2 += Math.pow(Psum, 2);
-
-        names.push(document.getElementById(`name-${i}`).value || 'ЕП ' + (i+1));
-        ipValues.push(Ip);
-
-        results.push(`<b>${names[i]}</b>: Pн = ${Psum.toFixed(2)} кВт, Ip = ${Ip.toFixed(2)} A`);
-      }
-
-      const KvGroup = totalPnKv / totalPn;
-      const ne = Math.pow(totalPn, 2) / totalPn2;
-      const Kp = parseFloat(document.getElementById('kpSelector').value);
-
-      const Pp = Kp * KvGroup * totalPn;
-      const Qp = Pp * 0.657;
-      const Sp = Math.sqrt(Pp ** 2 + Qp ** 2);
-      const IpGroup = Sp * 1000 / (Math.sqrt(3) * 380);
-
-      document.getElementById('results').innerHTML = `
-        <h2>Результати</h2>
-        ${results.join('<br>')}<br><br>
-        <b>Загальне Pн:</b> ${totalPn.toFixed(2)} кВт<br>
-        <b>Груповий Кв:</b> ${KvGroup.toFixed(4)}<br>
-        <b>ne:</b> ${ne.toFixed(2)}<br>
-        <b>Kр (вибір з таблиці):</b> ${Kp}<br>
-        <b>Розрахункове Pp:</b> ${Pp.toFixed(2)} кВт<br>
-        <b>Розрахункове Qp:</b> ${Qp.toFixed(2)} квар<br>
-        <b>Повна потужність Sp:</b> ${Sp.toFixed(2)} кВА<br>
-        <b>Ip груповий:</b> ${IpGroup.toFixed(2)} A<br>
+      const output = `
+        <strong>Результати:</strong><br>
+        Повна потужність: ${Sp.toFixed(2)} кВА<br>
+        Активна потужність (Pp): ${Pv.toFixed(2)} кВт<br>
+        Реактивна потужність (Qp): ${Qv.toFixed(2)} квар<br>
+        Струм ЕП (Ip): ${Ip.toFixed(2)} A<br>
+        Груповий струм (Ip груп.): ${Ip_group.toFixed(2)} A
       `;
 
-      const ctx = document.getElementById('loadChart').getContext('2d');
-      if (window.loadChart) window.loadChart.destroy();
-      window.loadChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: names,
-          datasets: [{
-            label: 'Ip, A',
-            data: ipValues,
-            backgroundColor: 'rgba(54, 162, 235, 0.6)',
-            borderColor: 'rgba(54, 162, 235, 1)',
-            borderWidth: 1
-          }]
-        },
-        options: {
-          responsive: true,
-          scales: {
-            y: {
-              beginAtZero: true,
-              title: {
-                display: true,
-                text: 'Струм (A)'
-              }
-            }
-          }
-        }
-      });
-    }
+      document.getElementById("result").innerHTML = output;
+    });
   </script>
 </body>
 </html>
